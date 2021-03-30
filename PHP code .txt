@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+       <title>
+              login page by Aaryaman
+       </title>
+</head>
+<body>
+<form action="" method="POST">
+<label>Username
+        <input type='text' name='username'>
+</label>
+
+<label>Password&nbsp;
+        <input type='password' name='password'>
+</label>
+<input type="submit" name="submit" value="Submit">
+
+</div>
+</form>
+<?php
+ini_set("display_errors",1);
+error_reporting(E_ALL);
+$con = new mysqli ("35.222.141.77","root","giratina26","login");
+
+if ($_REQUEST['submit'])
+{
+       $name = $_REQUEST['username'];
+       $pass = $_REQUEST['password'];
+       $obj = $con->query("SELECT * from logindetails WHERE Username='$name' and Password='$pass'");
+
+       if ($obj->num_rows >0) {
+               echo "Login Successful. Welcome ATPK";
+      }
+     else
+     {
+      echo "Your Username or Password is incorrect. Please try again using valid credentials";
+     }
+</body>
+</html>
