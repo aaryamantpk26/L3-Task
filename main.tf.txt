@@ -1,48 +1,69 @@
-// Configure the Google Cloud provider
+locals {
+  project = "ce-aaryaman-katoch-304313"
+  region  = "us-central1"
+}
+
 provider "google" {
-  credentials = file(var.credentials)
-  project     = var.gcp_project
-  region      = var.region
+  credentials = file("credentials.json")
+  project     = local.project
+  region      = local.region
 }
 
-// Create VPC
-resource "google_compute_network" "vpc" {
-  name                    = "${var.name}-vpc"
-  auto_create_subnetworks = "false"
+# google-module
+module "vpc" {
+  source  = "terraform-google-modules/network/google"
+  version = "2.5.0"
+
+  project_id   = local.project
+  network_name = "main"
+  routing_mode = "REGIONAL"
+
+  delete_default_internet_gateway_routes = "true"
+
+  subnets = [
+    {
+      subnet_name           = "public"
+      subnet_ip             = "10.0.0.0/24"
+      subnet_region         = "us-central1"
+      subnet_private_access = "false"
+      subnet_flow_logs      = "false"
+    },
+    {
+      subnet_name           = "private"
+      subnet_ip             = "10.0.1.0/24"
+      subnet_region         = "us-central1"
+      subnet_private_access = "true"
+      subnet_flow_logs      = "false"
+    }
+  ]
+  # defining default IGW manually
+
+  routes = [
+    {
+      name              = "egress-internet"
+      description       = "Default route through IGW to access internet"
+      destination_range = "0.0.0.0/0"
+      next_hop_internet = "true"
+    }
+  ]
 }
 
-// Create Subnet
-resource "google_compute_subnetwork" "subnet" {
-  name          = "${var.name}-subnet"
-  ip_cidr_range = var.subnet_cidr
-  network       = "${var.name}-vpc"
-  depends_on    = [google_compute_network.vpc]
-  region        = var.region
+# google-module for NAT gateway for private subnet
+module "cloud_router" {
+  source  = "terraform-google-modules/cloud-router/google"
+  version = "0.3.0"
+
+  name    = "router"
+  project = local.project
+  region  = local.region
+  network = module.vpc.network_name
+  nats = [{
+    name                               = "nat"
+    nat_ip_allocate_option             = "AUTO_ONLY"
+    source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+    subnetworks = [{
+      name                    = "private"
+      source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+    }]
+  }]
 }
-
-//public subnet
-resource "google_compute_subnetwork" "public-subnetwork" {
-  name          = "terraform-public-subnet"
-  ip_cidr_range = "172.16.2.0/24"
-  region        = "us-central1"         
-   network       = "${var.name}-vpc"
-  depends_on    = [google_compute_network.vpc]
-}
-
-// VPC firewall configuration
-resource "google_compute_firewall" "firewall" {
-  name    = "${var.name}-firewall"
-  network = google_compute_network.vpc.name
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-}
-
